@@ -1,0 +1,36 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Maven
+target/
+
+# Java
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test authentication cookies
+*.cookies
+
+# Test authentication cookies
+*.cookies
+.factorypath
+
+# Test cookie jar
+cookies.txt
