@@ -1,5 +1,19 @@
 #!/usr/bin/env bash
 
+# Load local test credentials (Ecom/.env.test)
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+
+if [[ ! -f "$PROJECT_ROOT/.env.test" ]]; then
+    echo "ERROR: $PROJECT_ROOT/.env.test not found."
+    exit 1
+fi
+
+set -a
+source "$PROJECT_ROOT/.env.test"
+set +a
+
+
 # ============================================================
 # Microservice Product Service - Automated E2E Test
 # ============================================================
@@ -40,9 +54,9 @@
 # Example:
 #
 #   export ADMIN_EMAIL='java@jvm.com'
-#   export ADMIN_PASSWORD='Java25@jvm'
-#   export USER_EMAIL='user@jvm.com'
-#   export USER_PASSWORD='UserPassword'
+#   export ADMIN_PASSWORD='<set locally>'
+#   export USER_EMAIL='<set locally>'
+#   export USER_PASSWORD='<set locally>'
 #
 #   ./test-product-service.sh
 #
@@ -69,7 +83,7 @@ ORDER_CLIENT_KEY="${ORDER_CLIENT_KEY:-/c/Users/swata/.config/microservice-orders
 # Test credentials
 # ------------------------------------------------------------
 
-ADMIN_EMAIL="${ADMIN_EMAIL:-java@jvm.com}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 
 USER_EMAIL="${USER_EMAIL:-}"

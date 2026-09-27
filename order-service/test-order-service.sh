@@ -1,5 +1,19 @@
 #!/usr/bin/env bash
 
+# Load local test credentials (Ecom/.env.test)
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+
+if [[ ! -f "$PROJECT_ROOT/.env.test" ]]; then
+    echo "ERROR: $PROJECT_ROOT/.env.test not found."
+    exit 1
+fi
+
+set -a
+source "$PROJECT_ROOT/.env.test"
+set +a
+
+
 # ============================================================
 # Order Service - End-to-End Validation
 # ============================================================
@@ -26,10 +40,10 @@ USER_SERVICE="https://localhost:8443"
 PRODUCT_SERVICE="https://localhost:8444"
 ORDER_SERVICE="https://localhost:8445"
 
-ADMIN_EMAIL="${ADMIN_EMAIL:-java@jvm.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-Java25@jvm}"
-USER_EMAIL="${USER_EMAIL:-duke@example.com}"
-USER_PASSWORD="${USER_PASSWORD:-Duke@12345}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
+USER_EMAIL="${USER_EMAIL:-}"
+USER_PASSWORD="${USER_PASSWORD:-}"
 
 ORDER_CLIENT_CERT="${ORDER_CLIENT_CERT:-/c/Users/swata/.config/microservice-orders/tls/order-client-cert.pem}"
 ORDER_CLIENT_KEY="${ORDER_CLIENT_KEY:-/c/Users/swata/.config/microservice-orders/tls/order-client-key.pem}"

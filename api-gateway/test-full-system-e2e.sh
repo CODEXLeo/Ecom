@@ -1,5 +1,19 @@
 #!/usr/bin/env bash
 
+# Load local test credentials (Ecom/.env.test)
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+
+if [[ ! -f "$PROJECT_ROOT/.env.test" ]]; then
+    echo "ERROR: $PROJECT_ROOT/.env.test not found."
+    exit 1
+fi
+
+set -a
+source "$PROJECT_ROOT/.env.test"
+set +a
+
+
 set -u
 set -o pipefail
 
@@ -42,11 +56,11 @@ set -o pipefail
 
 API_GATEWAY_URL="${API_GATEWAY_URL:-https://localhost:8442}"
 
-ADMIN_EMAIL="${ADMIN_EMAIL:-java@jvm.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-Java25@jvm}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 
-USER_EMAIL="${USER_EMAIL:-duke@example.com}"
-USER_PASSWORD="${USER_PASSWORD:-Duke@12345}"
+USER_EMAIL="${USER_EMAIL:-}"
+USER_PASSWORD="${USER_PASSWORD:-}"
 
 
 # ============================================================

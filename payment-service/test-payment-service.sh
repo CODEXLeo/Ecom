@@ -1,5 +1,19 @@
 #!/usr/bin/env bash
 
+# Load local test credentials (Ecom/.env.test)
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+
+if [[ ! -f "$PROJECT_ROOT/.env.test" ]]; then
+    echo "ERROR: $PROJECT_ROOT/.env.test not found."
+    exit 1
+fi
+
+set -a
+source "$PROJECT_ROOT/.env.test"
+set +a
+
+
 set -u
 
 # ================================================================
@@ -41,8 +55,8 @@ set -u
 #
 # Example:
 #
-#   USER_EMAIL="user@example.com" \
-#   USER_PASSWORD="Password@123" \
+#   USER_EMAIL="$USER_EMAIL" \
+#   USER_PASSWORD="$USER_PASSWORD" \
 #   ./scripts/test-payment-service.sh
 #
 # ================================================================
@@ -237,7 +251,7 @@ if [[ -z "${USER_EMAIL:-}" ]]; then
     echo "ERROR: USER_EMAIL is not set."
     echo
     echo 'Example:'
-    echo 'USER_EMAIL="user@example.com" USER_PASSWORD="Password@123" ./scripts/test-payment-service.sh'
+    echo 'USER_EMAIL="$USER_EMAIL" USER_PASSWORD="$USER_PASSWORD" ./scripts/test-payment-service.sh'
     exit 1
 fi
 

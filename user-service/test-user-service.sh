@@ -1,5 +1,19 @@
 #!/usr/bin/env bash
 
+# Load local test credentials (Ecom/.env.test)
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+
+if [[ ! -f "$PROJECT_ROOT/.env.test" ]]; then
+    echo "ERROR: $PROJECT_ROOT/.env.test not found."
+    exit 1
+fi
+
+set -a
+source "$PROJECT_ROOT/.env.test"
+set +a
+
+
 set -u
 set -o pipefail
 
@@ -150,11 +164,11 @@ fi
 STAMP="$(date +%Y%m%d%H%M%S)-${BASHPID}"
 
 USER_EMAIL="regression-${STAMP}@example.com"
-USER_PASSWORD='TestUser@123'
-NEW_PASSWORD='TestUser@456'
+USER_PASSWORD="${TEST_USER_PASSWORD:-}"
+NEW_PASSWORD="${TEST_USER_NEW_PASSWORD:-}"
 
 LOCKOUT_EMAIL="lockout-${STAMP}@example.com"
-LOCKOUT_PASSWORD='Lockout@123'
+LOCKOUT_PASSWORD="${TEST_USER_LOCKOUT_PASSWORD:-}"
 
 USER_ID=""
 LOCKOUT_USER_ID=""
@@ -308,7 +322,7 @@ STATUS=$(curl -k -sS \
     "$BASE_URL/api/v1/users/me/password" \
     -H "Content-Type: application/json" \
     -H "X-XSRF-TOKEN: $TOKEN" \
-    -d '{"currentPassword":"WrongCurrent@1","newPassword":"TestUser@456"}')
+    -d '{"currentPassword":"WrongCurrent@1","newPassword":"$TEST_USER_NEW_PASSWORD"}')
 
 check_status "$STATUS" "400" "Wrong current password is rejected"
 
