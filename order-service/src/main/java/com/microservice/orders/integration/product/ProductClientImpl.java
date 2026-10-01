@@ -8,22 +8,20 @@ import com.microservice.orders.exception.ProductUnavailableException;
 import com.microservice.orders.integration.product.dto.ProductResponse;
 import com.microservice.orders.integration.product.dto.ProductSnapshot;
 
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.HttpStatusCode;
+import feign.FeignException;
+
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 
 @Service
 public class ProductClientImpl implements ProductClient {
 
-    private final WebClient productServiceWebClient;
+    private final ProductFeignClient productFeignClient;
 
     public ProductClientImpl(
-            @Qualifier("productServiceWebClient")
-            WebClient productServiceWebClient
+            ProductFeignClient productFeignClient
     ) {
-        this.productServiceWebClient =
-                productServiceWebClient;
+        this.productFeignClient =
+                productFeignClient;
     }
 
     @Override
@@ -40,67 +38,9 @@ public class ProductClientImpl implements ProductClient {
         try {
 
             ProductResponse product =
-                    productServiceWebClient
-                            .get()
-                            .uri(
-                                    "/api/v1/products/{productId}",
-                                    productId
-                            )
-                            .retrieve()
-                            .onStatus(
-                                    status ->
-                                            status.value() == 404,
-                                    response ->
-                                            response
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new ProductNotFoundException(
-                                                                    "Product not found: "
-                                                                            + productId
-                                                            )
-                                                    )
-                            )
-                            .onStatus(
-                                    HttpStatusCode::is4xxClientError,
-                                    response ->
-                                            response
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new DownstreamServiceException(
-                                                                    "Product Service rejected product lookup. HTTP "
-                                                                            + response
-                                                                                    .statusCode()
-                                                                                    .value()
-                                                            )
-                                                    )
-                            )
-                            .onStatus(
-                                    HttpStatusCode::is5xxServerError,
-                                    response ->
-                                            response
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new DownstreamServiceException(
-                                                                    "Product Service returned HTTP "
-                                                                            + response
-                                                                                    .statusCode()
-                                                                                    .value()
-                                                            )
-                                                    )
-                            )
-                            .bodyToMono(
-                                    ProductResponse.class
-                            )
-                            .block();
+                    productFeignClient.getProduct(
+                            productId
+                    );
 
             if (product == null) {
                 throw new DownstreamServiceException(
@@ -110,12 +50,26 @@ public class ProductClientImpl implements ProductClient {
 
             return product;
 
+        } catch (FeignException.NotFound exception) {
+
+            throw new ProductNotFoundException(
+                    "Product not found: " + productId
+            );
+
         } catch (
-                ProductNotFoundException
-                        | DownstreamServiceException exception
+                DownstreamServiceException
+                        | ProductNotFoundException exception
         ) {
 
             throw exception;
+
+        } catch (FeignException exception) {
+
+            throw new DownstreamServiceException(
+                    "Product Service rejected product lookup. HTTP "
+                            + exception.status(),
+                    exception
+            );
 
         } catch (Exception exception) {
 
@@ -135,6 +89,7 @@ public class ProductClientImpl implements ProductClient {
                 getProduct(productId);
 
         if (product.productId() == null) {
+
             throw new DownstreamServiceException(
                     "Product Service returned a product without an ID"
             );
