@@ -5,26 +5,25 @@ import java.util.UUID;
 import com.microservice.orders.exception.DownstreamServiceException;
 import com.microservice.orders.exception.InventoryReservationConflictException;
 import com.microservice.orders.exception.InventoryReservationException;
+import com.microservice.orders.integration.product.InventoryFeignClient;
 import com.microservice.orders.inventory.dto.request.ReserveInventoryRequest;
 import com.microservice.orders.inventory.dto.response.InventoryOperationResponse;
 import com.microservice.orders.inventory.dto.response.ReservationResponse;
 
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.HttpStatusCode;
+import feign.FeignException;
+
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 
 @Service
 public class InventoryClientImpl implements InventoryClient {
 
-    private final WebClient productInventoryServiceWebClient;
+    private final InventoryFeignClient inventoryFeignClient;
 
     public InventoryClientImpl(
-            @Qualifier("productInventoryServiceWebClient")
-            WebClient productInventoryServiceWebClient
+            InventoryFeignClient inventoryFeignClient
     ) {
-        this.productInventoryServiceWebClient =
-                productInventoryServiceWebClient;
+        this.inventoryFeignClient =
+                inventoryFeignClient;
     }
 
     @Override
@@ -71,71 +70,10 @@ public class InventoryClientImpl implements InventoryClient {
         try {
 
             ReservationResponse response =
-                    productInventoryServiceWebClient
-                            .post()
-                            .uri(
-                                    "/api/v1/inventory/reservations"
-                            )
-                            .header(
-                                    "Idempotency-Key",
-                                    idempotencyKey
-                            )
-                            .bodyValue(request)
-                            .retrieve()
-                            .onStatus(
-                                    status ->
-                                            status.value() == 409,
-                                    clientResponse ->
-                                            clientResponse
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new InventoryReservationConflictException(
-                                                                    "Inventory reservation conflict for product "
-                                                                            + productId
-                                                            )
-                                                    )
-                            )
-                            .onStatus(
-                                    HttpStatusCode::is4xxClientError,
-                                    clientResponse ->
-                                            clientResponse
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new InventoryReservationException(
-                                                                    "Inventory Service rejected reservation. HTTP "
-                                                                            + clientResponse
-                                                                                    .statusCode()
-                                                                                    .value()
-                                                            )
-                                                    )
-                            )
-                            .onStatus(
-                                    HttpStatusCode::is5xxServerError,
-                                    clientResponse ->
-                                            clientResponse
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new DownstreamServiceException(
-                                                                    "Inventory Service returned HTTP "
-                                                                            + clientResponse
-                                                                                    .statusCode()
-                                                                                    .value()
-                                                            )
-                                                    )
-                            )
-                            .bodyToMono(
-                                    ReservationResponse.class
-                            )
-                            .block();
+                    inventoryFeignClient.reserve(
+                            request,
+                            idempotencyKey
+                    );
 
             if (response == null) {
                 throw new DownstreamServiceException(
@@ -145,11 +83,22 @@ public class InventoryClientImpl implements InventoryClient {
 
             return response;
 
-        } catch (
-                InventoryReservationConflictException
-                        | InventoryReservationException
-                        | DownstreamServiceException exception
-        ) {
+        } catch (FeignException.Conflict exception) {
+
+            throw new InventoryReservationConflictException(
+                    "Inventory reservation conflict for product "
+                            + productId
+            );
+
+        } catch (FeignException exception) {
+
+            throw new DownstreamServiceException(
+                    "Inventory Service reservation failed. HTTP "
+                            + exception.status(),
+                    exception
+            );
+
+        } catch (DownstreamServiceException exception) {
 
             throw exception;
 
@@ -197,89 +146,29 @@ public class InventoryClientImpl implements InventoryClient {
 
         try {
 
-            InventoryOperationResponse response =
-                    productInventoryServiceWebClient
-                            .post()
-                            .uri(
-                                    "/api/v1/inventory/reservations/{reservationId}/{operation}",
-                                    reservationId,
-                                    operation
-                            )
-                            .retrieve()
-                            .onStatus(
-                                    status ->
-                                            status.value() == 404,
-                                    clientResponse ->
-                                            clientResponse
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new InventoryReservationException(
-                                                                    "Inventory reservation not found: "
-                                                                            + reservationId
-                                                            )
-                                                    )
-                            )
-                            .onStatus(
-                                    status ->
-                                            status.value() == 409,
-                                    clientResponse ->
-                                            clientResponse
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new InventoryReservationConflictException(
-                                                                    "Inventory reservation cannot be "
-                                                                            + operation
-                                                                            + "d: "
-                                                                            + reservationId
-                                                            )
-                                                    )
-                            )
-                            .onStatus(
-                                    HttpStatusCode::is4xxClientError,
-                                    clientResponse ->
-                                            clientResponse
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new InventoryReservationException(
-                                                                    "Inventory Service rejected "
-                                                                            + operation
-                                                                            + ". HTTP "
-                                                                            + clientResponse
-                                                                                    .statusCode()
-                                                                                    .value()
-                                                            )
-                                                    )
-                            )
-                            .onStatus(
-                                    HttpStatusCode::is5xxServerError,
-                                    clientResponse ->
-                                            clientResponse
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty("")
-                                                    .map(body ->
-                                                            new DownstreamServiceException(
-                                                                    "Inventory Service returned HTTP "
-                                                                            + clientResponse
-                                                                                    .statusCode()
-                                                                                    .value()
-                                                            )
-                                                    )
-                            )
-                            .bodyToMono(
-                                    InventoryOperationResponse.class
-                            )
-                            .block();
+            InventoryOperationResponse response;
+
+            if ("commit".equals(operation)) {
+
+                response =
+                        inventoryFeignClient.commit(
+                                reservationId
+                        );
+
+            } else if ("release".equals(operation)) {
+
+                response =
+                        inventoryFeignClient.release(
+                                reservationId
+                        );
+
+            } else {
+
+                throw new IllegalArgumentException(
+                        "Unsupported inventory operation: "
+                                + operation
+                );
+            }
 
             if (response == null) {
                 throw new DownstreamServiceException(
@@ -291,11 +180,33 @@ public class InventoryClientImpl implements InventoryClient {
 
             return response;
 
-        } catch (
-                InventoryReservationConflictException
-                        | InventoryReservationException
-                        | DownstreamServiceException exception
-        ) {
+        } catch (FeignException.NotFound exception) {
+
+            throw new InventoryReservationException(
+                    "Inventory reservation not found: "
+                            + reservationId
+            );
+
+        } catch (FeignException.Conflict exception) {
+
+            throw new InventoryReservationConflictException(
+                    "Inventory reservation cannot be "
+                            + operation
+                            + "d: "
+                            + reservationId
+            );
+
+        } catch (FeignException exception) {
+
+            throw new DownstreamServiceException(
+                    "Inventory Service "
+                            + operation
+                            + " failed. HTTP "
+                            + exception.status(),
+                    exception
+            );
+
+        } catch (DownstreamServiceException exception) {
 
             throw exception;
 

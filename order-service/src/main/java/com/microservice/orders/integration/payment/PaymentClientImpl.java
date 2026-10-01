@@ -1,27 +1,26 @@
 package com.microservice.orders.integration.payment;
 
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Qualifier;
+
 import com.microservice.orders.exception.DownstreamServiceException;
 import com.microservice.orders.integration.payment.dto.PaymentRequest;
 import com.microservice.orders.integration.payment.dto.PaymentResponse;
 
-import org.springframework.http.HttpStatusCode;
+import feign.FeignException;
+
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 
 @Service
 public class PaymentClientImpl
         implements PaymentClient {
 
-    private final WebClient paymentServiceWebClient;
+    private final PaymentFeignClient paymentFeignClient;
 
     public PaymentClientImpl(
-            @Qualifier("paymentServiceWebClient")
-            WebClient paymentServiceWebClient
+            PaymentFeignClient paymentFeignClient
     ) {
-        this.paymentServiceWebClient =
-                paymentServiceWebClient;
+        this.paymentFeignClient =
+                paymentFeignClient;
     }
 
     @Override
@@ -29,46 +28,35 @@ public class PaymentClientImpl
             PaymentRequest request,
             String idempotencyKey
     ) {
+
+        if (request == null) {
+
+            throw new IllegalArgumentException(
+                    "Payment authorization request must not be null"
+            );
+        }
+
+        if (idempotencyKey == null
+                || idempotencyKey.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Idempotency key must not be null or blank"
+            );
+        }
+
         try {
+
             PaymentResponse response =
-                    paymentServiceWebClient
-                            .post()
-                            .uri(
-                                    "/api/v1/payments/internal/authorize"
-                            )
-                            .header(
-                                    "Idempotency-Key",
-                                    idempotencyKey
-                            )
-                            .bodyValue(request)
-                            .retrieve()
-                            .onStatus(
-                                    HttpStatusCode::isError,
-                                    clientResponse ->
-                                            clientResponse
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty(
-                                                            ""
-                                                    )
-                                                    .map(body ->
-                                                            new DownstreamServiceException(
-                                                                    "Payment Service authorization failed. HTTP "
-                                                                            + clientResponse
-                                                                                    .statusCode()
-                                                                                    .value()
-                                                            )
-                                                    )
-                            )
-                            .bodyToMono(
-                                    PaymentResponse.class
-                            )
-                            .block();
+                    paymentFeignClient.authorize(
+                            request,
+                            idempotencyKey
+                    );
 
             if (response == null) {
+
                 throw new DownstreamServiceException(
-                        "Payment Service returned an empty authorization response"
+                        "Payment Service returned an empty "
+                                + "authorization response"
                 );
             }
 
@@ -77,9 +65,19 @@ public class PaymentClientImpl
         } catch (
                 DownstreamServiceException exception
         ) {
+
             throw exception;
 
+        } catch (FeignException exception) {
+
+            throw new DownstreamServiceException(
+                    "Payment Service authorization failed. HTTP "
+                            + exception.status(),
+                    exception
+            );
+
         } catch (Exception exception) {
+
             throw new DownstreamServiceException(
                     "Unable to communicate with Payment Service",
                     exception
@@ -92,6 +90,7 @@ public class PaymentClientImpl
             UUID paymentId,
             String idempotencyKey
     ) {
+
         return executeOperation(
                 paymentId,
                 "capture",
@@ -104,6 +103,7 @@ public class PaymentClientImpl
             UUID paymentId,
             String idempotencyKey
     ) {
+
         return executeOperation(
                 paymentId,
                 "void",
@@ -116,6 +116,7 @@ public class PaymentClientImpl
             UUID paymentId,
             String idempotencyKey
     ) {
+
         return executeOperation(
                 paymentId,
                 "refund",
@@ -128,53 +129,41 @@ public class PaymentClientImpl
             String operation,
             String idempotencyKey
     ) {
+
         if (paymentId == null) {
+
             throw new IllegalArgumentException(
                     "Payment ID must not be null"
             );
         }
 
+        if (operation == null
+                || operation.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Payment operation must not be null or blank"
+            );
+        }
+
+        if (idempotencyKey == null
+                || idempotencyKey.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Idempotency key must not be null or blank"
+            );
+        }
+
         try {
+
             PaymentResponse response =
-                    paymentServiceWebClient
-                            .post()
-                            .uri(
-                                    "/api/v1/payments/internal/{paymentId}/{operation}",
-                                    paymentId,
-                                    operation
-                            )
-                            .header(
-                                    "Idempotency-Key",
-                                    idempotencyKey
-                            )
-                            .retrieve()
-                            .onStatus(
-                                    HttpStatusCode::isError,
-                                    clientResponse ->
-                                            clientResponse
-                                                    .bodyToMono(
-                                                            String.class
-                                                    )
-                                                    .defaultIfEmpty(
-                                                            ""
-                                                    )
-                                                    .map(body ->
-                                                            new DownstreamServiceException(
-                                                                    "Payment Service "
-                                                                            + operation
-                                                                            + " failed. HTTP "
-                                                                            + clientResponse
-                                                                                    .statusCode()
-                                                                                    .value()
-                                                            )
-                                                    )
-                            )
-                            .bodyToMono(
-                                    PaymentResponse.class
-                            )
-                            .block();
+                    paymentFeignClient.operate(
+                            paymentId,
+                            operation,
+                            idempotencyKey
+                    );
 
             if (response == null) {
+
                 throw new DownstreamServiceException(
                         "Payment Service returned an empty "
                                 + operation
@@ -187,9 +176,21 @@ public class PaymentClientImpl
         } catch (
                 DownstreamServiceException exception
         ) {
+
             throw exception;
 
+        } catch (FeignException exception) {
+
+            throw new DownstreamServiceException(
+                    "Payment Service "
+                            + operation
+                            + " failed. HTTP "
+                            + exception.status(),
+                    exception
+            );
+
         } catch (Exception exception) {
+
             throw new DownstreamServiceException(
                     "Unable to communicate with Payment Service",
                     exception
